@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KrishiSahay - AI Farming Assistant</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Tailwind CSS (CDN for simple setup) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            light: '#4ade80', // Green 400
+                            DEFAULT: '#16a34a', // Green 600
+                            dark: '#14532d', // Green 900
+                            brown: '#8B4513' // SaddleBrown
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        hi: ['Noto Sans Devanagari', 'Inter', 'sans-serif'],
+                        te: ['Noto Sans Telugu', 'Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- React and ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            background-color: #f8fafc;
+            margin: 0;
+            padding: 0;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+
+        /* Markdown parsing styles for chatbot */
+        .prose p {
+            margin-bottom: 0.5rem;
+        }
+
+        .prose ul {
+            list-style-type: disc;
+            margin-left: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .prose strong {
+            font-weight: 600;
+        }
+
+        .prose:last-child p:last-child {
+            margin-bottom: 0;
+        }
+
+        .chat-container {
+            scroll-behavior: smooth;
+        }
+
+        /* Language Fonts */
+        .lang-hi {
+            font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
+        }
+
+        .lang-te {
+            font-family: 'Noto Sans Telugu', 'Inter', sans-serif;
+        }
+
+        .lang-en {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="lang-en font-sans text-gray-800">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        {% raw %}
+        const { useState, useEffect, useRef } = React;
+
+        // --- Helper to parse very basic markdown ---
+        function parseMessageMarkdown(text) {
+            let html = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-brand underline hover:text-brand-dark">$1</a>')
+                .replace(/\n/g, '<br>');
+            const lines = html.split('<br>');
+            let inList = false;
+            let result = '';
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+                const isListItem = line.trim().startsWith('- ') || line.trim().startsWith('* ');
+
+                if (isListItem) {
+                    if (!inList) { result += '<ul>'; inList = true; }
+                    result += `<li>${line.trim().substring(2)}</li>`;
+                } else {
+                    if (inList) { result += '</ul>'; inList = false; }
+                    if (line.trim() !== '') result += `<p>${line}</p>`;
+                }
+            }
+            if (inList) result += '</ul>';
+            if (result === '') result = `<p>${html}</p>`;
+            return { __html: result };
+        }
+
+        // --- Components ---
+
+        function Navbar() {
+            return (
+                <nav className="bg-white shadow-sm sticky top-0 z-50">
+                    <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+                        <div className="flex items-center gap-2 text-brand-dark">
+                            <i className="fa-solid fa-seedling text-2xl text-brand"></i>
+                            <span className="font-bold text-xl tracking-tight">KrishiSahay</span>
+                        </div>
+                        <div className="hidden md:flex gap-6 text-gray-600 font-medium">
+                            <a href="#about" className="hover:text-brand transition">About</a>
+                            <a href="#demo" className="hover:text-brand transition">Try AI</a>
+                            <a href="#store" className="hover:text-brand transition font-semibold text-brand-dark">Shop Supplies</a>
+                        </div>
+                    </div>
+                </nav>
+            );
+        }
+
+        function Hero() {
+            return (
+                <section className="relative bg-brand-dark text-white overflow-hidden">
+                    {/* Simplified Background overlay to look earthy */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-brand-dark via-brand to-[#8B4513] opacity-90"></div>
+
+                    <div className="relative max-w-6xl mx-auto px-4 py-20 flex flex-col items-center text-center">
+                        <span className="bg-white/20 text-white px-3 py-1 rounded-full text-xs font-medium mb-4 backdrop-blur-sm">
+                            Generative AI-Powered Assistance
+                        </span>
+                        <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight max-w-3xl drop-shadow-sm">
+                            Empowering Farmers with <span className="text-yellow-300">AI Intelligence</span>
+                        </h1>
+                        <p className="text-base md:text-lg text-white/90 mb-8 max-w-2xl font-light">
+                            Ask your agriculture questions and get instant, accurate solutions.
+                        </p>
+                        <div className="flex gap-4">
+                            <a href="#demo" className="bg-yellow-400 hover:bg-yellow-300 text-brand-dark font-semibold px-6 py-3 rounded-lg shadow transition">
+                                Try Now <i className="fa-solid fa-arrow-right ml-2"></i>
+                            </a>
+                            <a href="#about" className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-medium px-6 py-3 rounded-lg transition border border-white/30 shadow">
+                                Learn More
+                            </a>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        function About() {
+            return (
+                <section id="about" className="py-16 bg-white">
+                    <div className="max-w-3xl mx-auto px-4 text-center">
+                        <h2 className="text-2xl font-bold text-gray-800 mb-4">About KrishiSahay</h2>
+                        <div className="w-16 h-1 bg-brand mx-auto mb-6 rounded"></div>
+                        <p className="text-gray-600 leading-relaxed">
+                            KrishiSahay is an intelligent platform designed to help the farming community.
+                            It provides instant answers to agricultural queries such as crop diseases, fertilizer recommendations,
+                            weather guidance, and government schemes. All powered by advanced Generative AI.
+                        </p>
+                    </div>
+                </section>
+            );
+        }
+
+        function Features() {
+            const features = [
+                { icon: "fa-leaf", title: "Crop Disease Detection", desc: "Identify issues instantly to save your harvest." },
+                { icon: "fa-robot", title: "AI Chat Support", desc: "Detailed 24/7 assistance for farming techniques." },
+                { icon: "fa-cloud-sun-rain", title: "Weather Suggestions", desc: "Actionable advice based on local forecasts." },
+                { icon: "fa-building-columns", title: "Government Schemes", desc: "Find programs that benefit your farm." },
+            ];
+
+            return (
+                <section id="features" className="py-16 bg-slate-50">
+                    <div className="max-w-5xl mx-auto px-4">
+                        <div className="text-center mb-10">
+                            <h2 className="text-2xl font-bold text-gray-800 mb-2">Features to Grow More</h2>
+                            <p className="text-gray-500 text-sm">Smart tools designed for modern agriculture.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {features.map((f, i) => (
+                                <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition text-center flex flex-col items-center">
+                                    <div className="w-12 h-12 bg-green-100 text-brand rounded-full flex items-center justify-center text-xl mb-4">
+                                        <i className={`fa-solid ${f.icon}`}></i>
+                                    </div>
+                                    <h3 className="text-lg font-semibold mb-2 text-gray-800">{f.title}</h3>
+                                    <p className="text-gray-500 text-sm leading-snug">{f.desc}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        function SupplyStoreAndSchemes() {
+            const products = [
+                { name: "Urea Fertilizer", type: "Nitrogen Source", icon: "fa-sack", query: "urea+fertilizer+agriculture", color: "bg-blue-100 text-blue-600" },
+                { name: "DAP Fertilizer", type: "Phosphorus & Nitrogen", icon: "fa-seedling", query: "dap+fertilizer+agriculture", color: "bg-green-100 text-green-600" },
+                { name: "Neem Oil", type: "Organic Pesticide", icon: "fa-bottle-droplet", query: "neem+oil+for+plants+agriculture", color: "bg-amber-100 text-amber-600" },
+                { name: "NPK 19:19:19", type: "Balanced Nutrients", icon: "fa-flask", query: "npk+19+19+19+fertilizer", color: "bg-purple-100 text-purple-600" },
+                { name: "Weedicides", type: "Weed Control", icon: "fa-spray-can", query: "weedicide+herbicide+agriculture", color: "bg-red-100 text-red-600" },
+                { name: "Fungicides", type: "Disease Control", icon: "fa-shield-halved", query: "fungicide+agriculture", color: "bg-teal-100 text-teal-600" },
+            ];
+
+            const schemes = [
+                { name: "PM-KISAN", desc: "Income support of ₹6,000/year to landholding farmer families.", link: "https://pmkisan.gov.in/" },
+                { name: "PMFBY", desc: "Pradhan Mantri Fasal Bima Yojana - Comprehensive Crop insurance.", link: "https://pmfby.gov.in/" },
+                { name: "KCC", desc: "Kisan Credit Card - Instant credit support for agricultural needs.", link: "https://www.myscheme.gov.in/schemes/kcc" }
+            ];
+
+            const [searchQuery, setSearchQuery] = useState("");
+
+            const handleSearch = (e) => {
+                e.preventDefault();
+                if (searchQuery.trim()) {
+                    window.open(`https://www.amazon.in/s?k=${encodeURIComponent(searchQuery)}+agriculture`, '_blank');
+                }
+            };
+
+            return (
+                <section id="store" className="py-16 bg-white border-t border-gray-100">
+                    <div className="max-w-6xl mx-auto px-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                            {/* Fertilizers Area - Takes 2/3 width on large screens */}
+                            <div className="lg:col-span-2 flex flex-col h-full">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2">Buy Fertilizers <span className="text-brand text-sm bg-brand-light/20 px-2 py-1 rounded-full ml-2 align-middle border border-brand/20">Quick Links</span></h2>
+                                        <p className="text-gray-500 text-sm">Order agricultural supplies online directly.</p>
+                                    </div>
+
+                                    <form onSubmit={handleSearch} className="w-full sm:w-auto relative flex">
+                                        <input
+                                            type="text"
+                                            placeholder="Search products..."
+                                            className="pl-4 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-l-lg text-sm w-full sm:w-56 focus:outline-none focus:ring-1 focus:ring-brand focus:bg-white transition"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                        />
+                                        <button type="submit" className="bg-brand text-white px-4 py-2.5 rounded-r-lg hover:bg-brand-dark transition shadow-sm">
+                                            <i className="fa-solid fa-search"></i>
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <div className="flex-grow grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-6">
+                                    {products.map((p, i) => (
+                                        <a key={i} href={`https://www.amazon.in/s?k=${p.query}`} target="_blank" rel="noopener noreferrer" className="group flex flex-col justify-between bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-brand/30 transition-all h-full">
+                                            <div className="flex flex-col xl:flex-row items-start xl:items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 ${p.color} group-hover:scale-110 transition-transform`}>
+                                                    <i className={`fa-solid ${p.icon}`}></i>
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-semibold text-gray-800 text-sm group-hover:text-brand transition-colors leading-tight">{p.name}</h3>
+                                                    <p className="text-[10px] text-gray-500 font-medium mt-0.5">{p.type}</p>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center text-xs font-semibold text-brand">
+                                                <span>Buy on Amazon</span>
+                                                <i className="fa-solid fa-arrow-up-right-from-square text-[10px] opacity-50 group-hover:opacity-100 transition-opacity"></i>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Govt Schemes Area - Takes 1/3 width on large screens */}
+                            <div className="lg:col-span-1 bg-gradient-to-br from-green-50 to-green-100/30 p-6 rounded-2xl border border-green-100 mt-8 lg:mt-0 flex flex-col">
+                                <h3 className="text-xl font-bold text-gray-800 mb-1 flex items-center gap-2">
+                                    <i className="fa-solid fa-building-columns text-green-600"></i>
+                                    Active Schemes
+                                </h3>
+                                <p className="text-gray-500 text-xs mb-5">Explore beneficial govt programs.</p>
+
+                                <div className="flex flex-col gap-3 flex-grow justify-start">
+                                    {schemes.map((s, i) => (
+                                        <a key={i} href={s.link} target="_blank" rel="noopener noreferrer" className="block p-4 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-brand/40 hover:shadow-md transition group">
+                                            <h4 className="font-bold text-gray-800 text-sm group-hover:text-brand transition-colors flex justify-between">
+                                                {s.name}
+                                                <i className="fa-solid fa-link text-[10px] text-brand opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                            </h4>
+                                            <p className="text-xs text-gray-500 mt-1 leading-snug">{s.desc}</p>
+                                            <div className="text-[10px] font-bold text-brand mt-2 uppercase tracking-wide flex items-center gap-1">
+                                                Check Eligibility <i className="fa-solid fa-arrow-right"></i>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                                <a href="https://www.myscheme.gov.in/search/category/Agriculture%2CRural%20&%20Environment" target="_blank" rel="noopener noreferrer" className="mt-4 text-center text-xs font-bold text-gray-500 hover:text-brand transition underline-offset-2 hover:underline">
+                                    View All Schemes
+                                </a>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        function HowItWorksSidebar() {
+            const steps = [
+                { num: "1", title: "Ask Your Question", desc: "Type your query about crops, weather, or pests." },
+                { num: "2", title: "AI Processing", desc: "Our advanced model analyzes the context." },
+                { num: "3", title: "Get Advice", desc: "Receive instantly personalized solutions." }
+            ];
+
+            return (
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-left">
+                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+                        <i className="fa-solid fa-circle-question text-brand"></i>
+                        How It Works
+                    </h3>
+                    <div className="flex flex-col gap-6">
+                        {steps.map((s, i) => (
+                            <div key={i} className="flex items-start gap-4">
+                                <div className="w-10 h-10 rounded-full bg-brand-light/20 text-brand flex shrink-0 items-center justify-center font-bold text-lg">
+                                    {s.num}
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-gray-800 text-sm">{s.title}</h4>
+                                    <p className="text-gray-500 text-xs mt-1 leading-snug">{s.desc}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function ChatbotDemo() {
+            const [messages, setMessages] = useState([
+                { role: 'ai', content: "Namaste! I am your KrishiSahay assistant. Ask me anything about your farm or crops." }
+            ]);
+            const [input, setInput] = useState("");
+            const [loading, setLoading] = useState(false);
+            const [language, setLanguage] = useState("en");
+            const [weatherData, setWeatherData] = useState({ temp: null, desc: "", location: "" });
+            const [weatherLoading, setWeatherLoading] = useState(true);
+            const [isRecording, setIsRecording] = useState(false);
+            const [selectedImage, setSelectedImage] = useState(null);
+            const [imagePreview, setImagePreview] = useState(null);
+            const fileInputRef = useRef(null);
+            const chatEndRef = useRef(null);
+
+            useEffect(() => {
+                if ("geolocation" in navigator) {
+                    navigator.geolocation.getCurrentPosition(
+                        async (position) => {
+                            try {
+                                const lat = position.coords.latitude;
+                                const lon = position.coords.longitude;
+                                const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
+                                if (res.ok) {
+                                    const data = await res.json();
+                                    setWeatherData({
+                                        temp: data.temperature,
+                                        desc: data.description,
+                                        location: data.location
+                                    });
+                                }
+                            } catch (error) {
+                                console.error("Weather fetch error", error);
+                            } finally {
+                                setWeatherLoading(false);
+                            }
+                        },
+                        (error) => {
+                            console.warn("Geolocation error", error);
+                            setWeatherLoading(false);
+                        },
+                        { timeout: 10000 }
+                    );
+                } else {
+                    setWeatherLoading(false);
+                }
+            }, []);
+
+            const scrollToBottom = () => {
+                chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            };
+
+            useEffect(() => {
+                scrollToBottom();
+            }, [messages]);
+
+            // Adjust body class for font styling when language changes
+            useEffect(() => {
+                document.body.className = `lang-${language} font-sans text-gray-800`;
+            }, [language]);
+
+            // Voice Recognition Logic
+            const recognitionRef = useRef(null);
+
+            const handleMicClick = () => {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    alert("Your browser does not support voice input. Please try using Google Chrome or Microsoft Edge.");
+                    return;
+                }
+
+                if (isRecording) {
+                    if (recognitionRef.current) {
+                        try { recognitionRef.current.stop(); } catch (e) { }
+                    }
+                    setIsRecording(false);
+                    return;
+                }
+
+                const recognition = new SpeechRecognition();
+                recognitionRef.current = recognition;
+
+                if (language === 'hi') recognition.lang = 'hi-IN';
+                else if (language === 'te') recognition.lang = 'te-IN';
+                else recognition.lang = 'en-US';
+
+                recognition.continuous = false;
+                recognition.interimResults = false;
+
+                recognition.onstart = () => {
+                    setIsRecording(true);
+                };
+
+                recognition.onresult = (event) => {
+                    let finalTranscript = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            finalTranscript += event.results[i][0].transcript;
+                        }
+                    }
+                    if (finalTranscript) {
+                        setInput(prev => prev + (prev.length > 0 ? " " : "") + finalTranscript);
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error("Speech recognition error:", event.error);
+                    if (event.error === 'not-allowed') {
+                        alert("Microphone access blocked. Please allow mic permissions in your browser address bar.");
+                    } else if (event.error === 'audio-capture') {
+                        alert("No microphone found! Please check if your microphone is properly plugged in, or check Windows Settings -> Privacy -> Microphone to ensure apps are allowed to access it.");
+                    } else if (event.error === 'no-speech') {
+                        // Just silently handle if they didn't speak
+                    } else {
+                        alert("Voice input error: " + event.error);
+                    }
+                    setIsRecording(false);
+                };
+
+                recognition.onend = () => {
+                    setIsRecording(false);
+                };
+
+                recognition.onnomatch = () => {
+                    setIsRecording(false);
+                };
+
+                try {
+                    recognition.start();
+                } catch (e) {
+                    setIsRecording(false);
+                }
+            };
+
+            // Image Upload Logic
+            const handleImageChange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                        alert("Image size should be less than 5MB");
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        setSelectedImage(reader.result); // Base64 string
+                        setImagePreview(reader.result);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const clearImage = () => {
+                setSelectedImage(null);
+                setImagePreview(null);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if ((!input.trim() && !selectedImage) || loading) return;
+
+                const userQuery = input.trim();
+
+                // Add message to UI
+                let contentHtml = userQuery;
+                if (imagePreview) {
+                    contentHtml = `<img src="${imagePreview}" class="max-w-[200px] max-h-[200px] rounded-lg mb-2 border border-brand/20 shadow-sm" alt="Uploaded Image" /><br/>` + contentHtml;
+                }
+                setMessages(prev => [...prev, { role: 'user', content: contentHtml, isHtml: true }]);
+
+                setInput("");
+                const imageToSend = selectedImage; // Keep local ref for this request
+                clearImage(); // Clear UI
+                setLoading(true);
+
+                try {
+                    // Call the Flask Backend
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            query: userQuery,
+                            image: imageToSend,
+                            weather: weatherData.desc || "Unknown",
+                            location: weatherData.location || "Unknown",
+                            language: language
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setMessages(prev => [...prev, { role: 'ai', content: data.response }]);
+                    } else {
+                        setMessages(prev => [...prev, { role: 'ai', content: "Error connecting to service." }]);
+                    }
+                } catch (error) {
+                    setMessages(prev => [...prev, { role: 'ai', content: "Network error. Make sure the backend server (app.py) is running." }]);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <section id="demo" className="py-16 bg-slate-50 border-t border-gray-100">
+                    <div className="max-w-5xl mx-auto px-4">
+                        <div className="text-center mb-8">
+                            <h2 className="text-2xl font-bold text-gray-800 mb-2">Try the KrishiSahay Chatbot</h2>
+                            <p className="text-gray-600 text-sm mb-6">Experience our AI-powered agricultural logic.</p>
+
+                            {/* Simple language selector */}
+                            <div className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
+                                <label className="text-sm font-medium text-gray-600">Language:</label>
+                                <select
+                                    className="bg-transparent border-none text-sm outline-none text-brand font-semibold cursor-pointer"
+                                    value={language}
+                                    onChange={(e) => setLanguage(e.target.value)}
+                                >
+                                    <option value="en">English</option>
+                                    <option value="hi">Hindi (हिन्दी)</option>
+                                    <option value="te">Telugu (తెలుగు)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                            <div className="md:col-span-2 glass rounded-2xl overflow-hidden flex flex-col h-[480px] border border-white shadow-lg w-full">
+                                {/* Chat Header */}
+                                <div className="bg-white/80 border-b border-gray-100 px-5 py-3 flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-brand text-white rounded-full flex items-center justify-center text-sm">
+                                        <i className="fa-solid fa-robot"></i>
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold text-gray-800 text-sm">KrishiSahay AI</h3>
+                                        <p className="text-[10px] text-brand font-medium flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 bg-brand rounded-full mt-[1px]"></span> Online
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Messages */}
+                                <div className="flex-grow p-5 overflow-y-auto chat-container flex flex-col gap-3 bg-gray-50/50">
+                                    {messages.map((msg, idx) => (
+                                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`max-w-[85%] p-3 rounded-xl text-sm ${msg.role === 'user'
+                                                ? 'bg-brand text-white rounded-br-sm'
+                                                : 'bg-white shadow-sm border border-gray-100 text-gray-800 rounded-bl-sm prose prose-sm'
+                                                }`}
+                                                dangerouslySetInnerHTML={msg.role === 'user' && !msg.isHtml ? undefined : (msg.isHtml ? { __html: msg.content } : parseMessageMarkdown(msg.content))}>
+                                                {msg.role === 'user' && !msg.isHtml ? msg.content : undefined}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {loading && (
+                                        <div className="flex justify-start">
+                                            <div className="bg-white shadow-sm border border-gray-100 text-gray-800 rounded-xl rounded-bl-sm p-3 flex gap-1.5 items-center">
+                                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ "animationDelay": "0.1s" }}></div>
+                                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ "animationDelay": "0.2s" }}></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div ref={chatEndRef} />
+                                </div>
+
+                                {/* Input Area */}
+                                <div className="p-3 bg-white border-t border-gray-100 flex flex-col">
+                                    {/* Image Preview Area */}
+                                    {imagePreview && (
+                                        <div className="mb-3 relative inline-block self-start">
+                                            <img src={imagePreview} alt="Preview" className="h-20 w-auto rounded-lg border border-brand/20 shadow-sm" />
+                                            <button onClick={clearImage} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-red-600 shadow-sm">
+                                                <i className="fa-solid fa-times"></i>
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+                                        <div className="flex-grow flex items-center bg-gray-50 border border-gray-200 rounded-lg focus-within:ring-1 focus-within:ring-brand focus-within:bg-white transition px-2 py-1.5">
+                                            {/* Hidden File Input */}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                ref={fileInputRef}
+                                                onChange={handleImageChange}
+                                            />
+                                            {/* Camera Button */}
+                                            <button
+                                                type="button"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className={`p-2 rounded-md text-gray-400 hover:text-brand hover:bg-brand/10 transition ${imagePreview ? 'text-brand bg-brand/10' : ''}`}
+                                                title="Upload Image"
+                                            >
+                                                <i className="fa-solid fa-camera"></i>
+                                            </button>
+
+                                            <input
+                                                type="text"
+                                                value={input}
+                                                onChange={(e) => setInput(e.target.value)}
+                                                placeholder={isRecording ? "Listening..." : "Ask your query here..."}
+                                                className={`flex-grow px-2 py-1 bg-transparent text-sm focus:outline-none ${isRecording ? 'text-red-500 placeholder-red-400' : ''}`}
+                                            />
+
+                                            {/* Mic Button */}
+                                            <button
+                                                type="button"
+                                                onClick={handleMicClick}
+                                                className={`p-2 rounded-md transition ${isRecording ? 'text-red-500 bg-red-50 animate-pulse' : 'text-gray-400 hover:text-brand hover:bg-brand/10'}`}
+                                                title="Voice Input"
+                                            >
+                                                <i className={isRecording ? "fa-solid fa-microphone-lines" : "fa-solid fa-microphone"}></i>
+                                            </button>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            disabled={loading || (!input.trim() && !imagePreview)}
+                                            className="bg-brand hover:bg-brand-dark h-[42px] px-5 text-white rounded-lg transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm shrink-0"
+                                        >
+                                            <i className="fa-solid fa-paper-plane"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-1 h-full hidden md:block flex flex-col">
+                                {/* Weather Widget */}
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-left mb-6">
+                                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                        <i className="fa-solid fa-cloud-sun text-brand"></i>
+                                        Local Weather
+                                    </h3>
+                                    {weatherLoading ? (
+                                        <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                            <i className="fa-solid fa-spinner fa-spin"></i> Fetching location...
+                                        </div>
+                                    ) : weatherData.temp !== null ? (
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="text-4xl font-bold text-gray-800">{Math.round(weatherData.temp)}&deg;C</div>
+                                                <div className="text-3xl text-brand"><i className="fa-solid fa-temperature-half"></i></div>
+                                            </div>
+                                            <div className="text-sm font-medium text-gray-700 capitalize mb-2">{weatherData.desc}</div>
+                                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                                                <i className="fa-solid fa-location-dot text-red-400"></i> {weatherData.location}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-500 text-sm">
+                                            <i className="fa-solid fa-location-crosshairs"></i> Location unavailable.
+                                        </p>
+                                    )}
+                                </div>
+                                <HowItWorksSidebar />
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        function App() {
+            return (
+                <div className="min-h-screen flex flex-col font-sans">
+                    <Navbar />
+                    <main className="flex-grow">
+                        <About />
+                        <ChatbotDemo />
+                        <SupplyStoreAndSchemes />
+                        <Features />
+                    </main>
+                    {/* Excluded Footer */}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+        {% endraw %}
+    </script>
+</body>
+
+</html>
